@@ -42,6 +42,11 @@ service cloud.firestore {
       }
     }
 
+    // Team records are private operational data, separate from the public projection.
+    match /teams/{teamId} {
+      allow read, write: if isActiveAdmin();
+    }
+
     // Player records may contain personal information. Never expose these
     // documents to public scoreboard visitors.
     match /players/{playerId} {
