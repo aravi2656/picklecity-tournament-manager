@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db, firebaseConfigured } from './firebase'
-import { deleteCloudMatch, deleteCloudPlayer, deleteCloudTeam, deleteCloudTournament, loadCloudMatches, loadPlayers, loadTeams, loadTournaments, saveCloudMatch, saveCloudPlayer, saveCloudTeam, saveCloudTournament } from './firestoreData'
+import { deleteCloudMatch, deleteCloudPlayer, deleteCloudTeam, deleteCloudTournament, loadCloudMatches, loadPlayers, loadTeams, loadTournaments, saveCloudMatch, saveCloudPlayer, saveCloudTeam, saveCloudTournament, loadPublicSnapshot, publishPublicSnapshot } from './firestoreData'
 import { Activity, CalendarDays, ClipboardList, Users, Trophy, Radio, Settings, Menu, Plus, ArrowUpRight, Sparkles, Pencil, Copy, Trash2, X } from 'lucide-react'
 type Section = 'Overview' | 'Tournaments' | 'Players' | 'Teams' | 'Matches' | 'Live scoreboard' | 'Settings'
 type Player = { id:string; name:string; phone:string; category:string; tournamentId:string }
@@ -17,7 +17,19 @@ const seed: Tournament[] = [{ id: 'demo-kpl-s2', name: 'KPL Season 2', format: '
 const nav: { label: Section; icon: typeof Activity }[] = [{label:'Overview',icon:Activity},{label:'Tournaments',icon:CalendarDays},{label:'Players',icon:Users},{label:'Teams',icon:Trophy},{label:'Matches',icon:ClipboardList},{label:'Live scoreboard',icon:Radio},{label:'Settings',icon:Settings}]
 function readDemo(): Tournament[] { try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) as Tournament[] : seed } catch { return seed } }
 function PickleCityLogo() { return <div className="logo-mark">PC</div> }
-export default function App() {
+
+function PublicScoreboard({ tournamentId }: { tournamentId: string }) {
+ const [snapshot,setSnapshot]=useState<any>(null)
+ const [loading,setLoading]=useState(true)
+ const [error,setError]=useState('')
+ useEffect(()=>{let active=true;loadPublicSnapshot(tournamentId).then(data=>{if(active)setSnapshot(data)}).catch(err=>{if(active)setError(err instanceof Error?err.message:'Unable to load scoreboard')}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[tournamentId])
+ if(loading)return <main className="public-shell"><p>Loading live scoreboard…</p></main>
+ if(error)return <main className="public-shell"><h1>Scoreboard unavailable</h1><p>{error}</p></main>
+ if(!snapshot)return <main className="public-shell"><div className="public-brand">PICKLECITY</div><h1>Scoreboard not available</h1><p>This tournament has not been published, or its public link is no longer active.</p></main>
+ const t=snapshot.tournament
+ return <main className="public-shell"><header className="public-header"><div className="public-brand">PICKLECITY <span>TOURNAMENT MANAGER</span></div><span className="public-live">PUBLIC SCOREBOARD</span></header><section className="public-hero"><p>TOURNAMENT SCOREBOARD</p><h1>{t.name}</h1><div>{t.format} {t.venue?' · '+t.venue:''} {t.startDate?' · '+t.startDate:''}</div><span className="public-status">{t.status}</span></section><section className="public-section"><h2>Matches & Results</h2>{snapshot.matches.length===0?<p>No fixtures have been published yet.</p>:<div className="public-match-grid">{snapshot.matches.sort((a:any,b:any)=>(a.date||'').localeCompare(b.date||'')).map((m:any)=><article className="public-match" key={m.id}><div className="public-match-meta">{m.round||'Match'} · {m.status||'Scheduled'}</div><div className="public-team"><strong>{m.teamAName||'Team A'}</strong><b>{m.scoreA??'—'}</b></div><div className="public-team"><strong>{m.teamBName||'Team B'}</strong><b>{m.scoreB??'—'}</b></div><div className="public-match-meta">{m.date||'Date TBC'} · {m.court||'Court TBC'}</div></article>)}</div>}</section><section className="public-section"><h2>League Standings</h2>{snapshot.standings.length===0?<p>Standings will appear when published.</p>:<div className="public-table-wrap"><table><thead><tr><th>Rank</th><th>Team</th><th>Played</th><th>Won</th><th>Lost</th><th>Points</th><th>Diff.</th></tr></thead><tbody>{snapshot.standings.sort((a:any,b:any)=>a.rank-b.rank).map((s:any)=><tr key={s.id}><td>{s.rank}</td><td><strong>{s.teamName}</strong></td><td>{s.played}</td><td>{s.wins}</td><td>{s.losses}</td><td><strong>{s.points}</strong></td><td>{s.scoreDifference}</td></tr>)}</tbody></table></div>}</section><footer className="public-footer">PickleCity · Public read-only scoreboard</footer></main>
+}
+export default function App() {\n const publicMatch=window.location.pathname.match(/^\\/live\\/([a-zA-Z0-9_-]+)\\/?$/);\n if(publicMatch)return <PublicScoreboard tournamentId={publicMatch[1]}/>;
  const [section,setSection] = useState<Section>('Overview')
  const [dataMode,setDataMode]=useState<'demo'|'live'>('demo')
  const [liveLoading,setLiveLoading]=useState(false)
