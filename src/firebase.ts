@@ -3,17 +3,16 @@ import { getAuth } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  apiKey: "AIzaSyCEu7KWOsn1yvZ5lch0OkvJoDWwJFPjWcc",
+  authDomain: "kpl-tournament-manager.firebaseapp.com",
+  projectId: "kpl-tournament-manager",
+  storageBucket: "kpl-tournament-manager.firebasestorage.app",
+  messagingSenderId: "101022353099",
+  appId: "1:101022353099:web:9ed738d39853af8f1cbd4e"
 }
 
-const configured = Boolean(firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId && firebaseConfig.appId)
-const app = configured ? initializeApp(firebaseConfig) : null
+const app = initializeApp(firebaseConfig)
 
-export const firebaseConfigured = configured
-export const auth = app ? getAuth(app) : null
-export const db = app ? getFirestore(app) : null
+export const auth = getAuth(app)
+export const db = getFirestore(app)
+export const firebaseConfigured = true
