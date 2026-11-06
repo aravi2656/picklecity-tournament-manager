@@ -38,7 +38,7 @@ service cloud.firestore {
         allow create, delete: if isScoreAdmin();
         allow update: if isScoreAdmin()
           && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['scoreA', 'scoreB', 'status', 'updatedAt', 'updatedBy']);
+            .hasOnly(['teamA', 'teamB', 'date', 'court', 'round', 'scoreA', 'scoreB', 'status', 'updatedAt', 'updatedBy']);
       }
     }
 
