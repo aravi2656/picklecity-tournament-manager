@@ -124,30 +124,36 @@ export async function publishPublicSnapshot(
     published,
     updatedAt: serverTimestamp()
   }, { merge: true })
+
   const [oldMatches, oldStandings] = await Promise.all([
     getDocs(collection(db, 'publicTournaments', tournament.id, 'matches')),
     getDocs(collection(db, 'publicTournaments', tournament.id, 'standings'))
   ])
-  const batch = writeBatch(db)
+
+  // Keep each Firestore batch below its 500-write limit.
+  const operations: Array<(batch: ReturnType<typeof writeBatch>) => void> = []
   if (!published) {
-    oldMatches.docs.forEach(item => batch.delete(item.ref))
-    oldStandings.docs.forEach(item => batch.delete(item.ref))
+    oldMatches.docs.forEach(item => operations.push(batch => batch.delete(item.ref)))
+    oldStandings.docs.forEach(item => operations.push(batch => batch.delete(item.ref)))
+  } else {
+    const matchIds = new Set(matches.map(item => item.id))
+    const standingIds = new Set(standings.map(item => item.id))
+    oldMatches.docs.filter(item => !matchIds.has(item.id)).forEach(item => operations.push(batch => batch.delete(item.ref)))
+    oldStandings.docs.filter(item => !standingIds.has(item.id)).forEach(item => operations.push(batch => batch.delete(item.ref)))
+    for (const match of matches) {
+      const { id, teamA: _teamA, teamB: _teamB, ...safeMatch } = match
+      operations.push(batch => batch.set(doc(db, 'publicTournaments', tournament.id, 'matches', id), safeMatch))
+    }
+    for (const standing of standings) {
+      const { id, ...safeStanding } = standing
+      operations.push(batch => batch.set(doc(db, 'publicTournaments', tournament.id, 'standings', id), safeStanding))
+    }
+  }
+  for (let offset = 0; offset < operations.length; offset += 450) {
+    const batch = writeBatch(db)
+    operations.slice(offset, offset + 450).forEach(operation => operation(batch))
     await batch.commit()
-    return
   }
-  const matchIds = new Set(matches.map(item => item.id))
-  const standingIds = new Set(standings.map(item => item.id))
-  oldMatches.docs.filter(item => !matchIds.has(item.id)).forEach(item => batch.delete(item.ref))
-  oldStandings.docs.filter(item => !standingIds.has(item.id)).forEach(item => batch.delete(item.ref))
-  for (const match of matches) {
-    const { id, ...safeMatch } = match
-    batch.set(doc(db, 'publicTournaments', tournament.id, 'matches', id), safeMatch)
-  }
-  for (const standing of standings) {
-    const { id, ...safeStanding } = standing
-    batch.set(doc(db, 'publicTournaments', tournament.id, 'standings', id), safeStanding)
-  }
-  await batch.commit()
 }
 
 export async function deleteCloudTournament(id: string): Promise<void> {
