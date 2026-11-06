@@ -3,10 +3,22 @@ import { Activity, CalendarDays, ClipboardList, Users, Trophy, Radio, Settings, 
 import { firebaseConfigured } from './firebase'
 type Section = 'Overview' | 'Tournaments' | 'Players' | 'Teams' | 'Matches' | 'Live scoreboard' | 'Settings'
 const nav: { label: Section; icon: typeof Activity }[] = [{label:'Overview',icon:Activity},{label:'Tournaments',icon:CalendarDays},{label:'Players',icon:Users},{label:'Teams',icon:Trophy},{label:'Matches',icon:ClipboardList},{label:'Live scoreboard',icon:Radio},{label:'Settings',icon:Settings}]
+function PickleCityLogo() {
+ return <svg className="picklecity-logo" viewBox="0 0 120 116" role="img" aria-label="Pickle City logo">
+  <path d="M15 39 29 20 45 31 60 14 75 31 91 20 105 39 99 76 Q94 96 60 108 Q26 96 21 76Z" fill="#087fbd" stroke="#d9f36a" strokeWidth="3"/>
+  <g fill="#d9f36a" stroke="#d9f36a" strokeWidth="2"><path d="M23 25 39 9 49 19 34 36Z"/><path d="M97 25 81 9 71 19 86 36Z"/></g>
+  <circle cx="60" cy="22" r="12" fill="#d9f36a" stroke="#d9f36a" strokeWidth="2"/>
+  <g fill="#087fbd"><circle cx="55" cy="18" r="1.8"/><circle cx="65" cy="18" r="1.8"/><circle cx="60" cy="26" r="1.8"/><circle cx="52" cy="25" r="1.5"/><circle cx="68" cy="25" r="1.5"/></g>
+  <path d="M18 43H102V77H18Z" fill="#087fbd" stroke="#d9f36a" strokeWidth="2"/>
+  <text x="60" y="61" textAnchor="middle" fontSize="17" fontWeight="900" fill="#d9f36a" fontFamily="Arial,sans-serif">PICKLE</text>
+  <text x="60" y="75" textAnchor="middle" fontSize="12" fontWeight="900" fill="#d9f36a" fontFamily="Arial,sans-serif">CITY</text>
+  <path d="m60 85 2.3 4.5 5 .7-3.6 3.4.9 5-4.6-2.4-4.6 2.4.9-5-3.6-3.4 5-.7Z" fill="#d9f36a"/>
+ </svg>
+}
 export default function App() {
  const [section,setSection] = useState<Section>('Overview'); const [menuOpen,setMenuOpen] = useState(false)
  return <div className="app-shell"><aside className={menuOpen?'sidebar open':'sidebar'}>
-  <div className="brand"><div className="brand-logo"><span>PC</span></div><div><strong>PICKLECITY</strong><span>TOURNAMENT MANAGER</span></div></div>
+  <div className="brand"><div className="brand-logo"><PickleCityLogo/></div><div><strong>PICKLECITY</strong><span>TOURNAMENT MANAGER</span></div></div>
   <div className="workspace-label">WORKSPACE</div><nav>{nav.map(({label,icon:Icon})=><button key={label} className={section===label?'nav-item active':'nav-item'} onClick={()=>{setSection(label);setMenuOpen(false)}}><Icon size={18}/><span>{label}</span></button>)}</nav>
   <div className="sidebar-bottom"><span className={firebaseConfigured?'status-dot connected':'status-dot'}/>{firebaseConfigured?'Firebase configured':'Firebase setup pending'}<small>PickleCity Manager</small></div></aside>
  <main className="main"><header className="topbar"><button className="menu-button" onClick={()=>setMenuOpen(!menuOpen)} aria-label="Toggle menu"><Menu size={20}/></button><div className="crumb">PickleCity <span>/</span> {section}</div><div className="top-right"><span className="admin-pill">Admin workspace</span><div className="avatar">AK</div></div></header>
