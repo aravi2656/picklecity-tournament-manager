@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDocs,
+  getDoc,
   deleteDoc,
   writeBatch,
   serverTimestamp,
@@ -124,8 +125,21 @@ export async function publishPublicSnapshot(
     published,
     updatedAt: serverTimestamp()
   }, { merge: true })
-  if (!published) return
+  const [oldMatches, oldStandings] = await Promise.all([
+    getDocs(collection(db, 'publicTournaments', tournament.id, 'matches')),
+    getDocs(collection(db, 'publicTournaments', tournament.id, 'standings'))
+  ])
   const batch = writeBatch(db)
+  if (!published) {
+    oldMatches.docs.forEach(item => batch.delete(item.ref))
+    oldStandings.docs.forEach(item => batch.delete(item.ref))
+    await batch.commit()
+    return
+  }
+  const matchIds = new Set(matches.map(item => item.id))
+  const standingIds = new Set(standings.map(item => item.id))
+  oldMatches.docs.filter(item => !matchIds.has(item.id)).forEach(item => batch.delete(item.ref))
+  oldStandings.docs.filter(item => !standingIds.has(item.id)).forEach(item => batch.delete(item.ref))
   for (const match of matches) {
     const { id, ...safeMatch } = match
     batch.set(doc(db, 'publicTournaments', tournament.id, 'matches', id), safeMatch)
@@ -154,4 +168,18 @@ export async function deleteCloudTeam(id: string): Promise<void> {
 }
 export async function deleteCloudMatch(tournamentId: string, id: string): Promise<void> {
   await deleteDoc(doc(db, 'tournaments', tournamentId, 'matches', id))
+}
+
+export async function loadPublicSnapshot(tournamentId: string) {
+  const parent = await getDoc(doc(db, 'publicTournaments', tournamentId))
+  if (!parent.exists() || parent.data().published !== true) return null
+  const [matchDocs, standingDocs] = await Promise.all([
+    getDocs(collection(db, 'publicTournaments', tournamentId, 'matches')),
+    getDocs(collection(db, 'publicTournaments', tournamentId, 'standings'))
+  ])
+  return {
+    tournament: parent.data(),
+    matches: matchDocs.docs.map(item => ({ id: item.id, ...item.data() })),
+    standings: standingDocs.docs.map(item => ({ id: item.id, ...item.data() }))
+  }
 }
