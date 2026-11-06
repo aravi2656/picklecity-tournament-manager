@@ -15,11 +15,9 @@ Implemented in the demo:
 - Match CSV export
 
 Not implemented yet:
-- Firebase email/password sign-in and Firestore read/write operations for tournaments, players, teams and matches (admin role restrictions apply)
-- Public parent scoreboard and publication workflow
 - Knockout bracket progression and league-to-semifinal/final automation
 - Random mixed-doubles partner generation
-- PDF export, complete PWA icons and verified Android installation
+- PDF export
 - Production deployment and end-to-end security testing
 
 ## Firebase project
@@ -38,7 +36,7 @@ The rules file establishes two data zones:
 - `publicTournaments/{tournamentId}/matches/{matchId}` and `standings/{standingId}`: public display data, readable only when the parent tournament has `published: true`.
 - `admins/{uid}`: roles provisioned by a trusted project owner; clients cannot grant roles.
 
-Suggested admin roles are `super_admin` and `score_admin`. The rules allow super admins to manage tournament setup and score admins to update match scores. This is a starting ruleset, not production-verified security. The rules now include private root-level `teams/{teamId}` documents. The React screens now load and save live Firestore records when an active admin opens Live mode. Demo and live data are kept separate. The rules file is committed to GitHub but has NOT been deployed to the Firebase console. Player/team writes are restricted to super admins; match writes are restricted to score admins and super admins. Tournament deletion removes its match subcollection in batches. Before real use, validate document shapes and field types, test authorization in the Firebase Emulator Suite, and review the public projection before enabling parent access.
+Suggested admin roles are `super_admin` and `score_admin`. The rules allow super admins to manage tournament setup and score admins to update match scores. This is a starting ruleset, not production-verified security. The rules now include private root-level `teams/{teamId}` documents. The React screens include email/password admin sign-in and load/save live Firestore records when an active admin opens Live mode. The public scoreboard route reads a separately published, sanitized snapshot and refreshes periodically. A manifest SVG icon is included, but Android installability has not yet been verified. Demo and live data are kept separate. The rules file is committed to GitHub but has NOT been deployed to the Firebase console. Player/team writes are restricted to super admins; match writes are restricted to score admins and super admins. Tournament deletion removes its match subcollection in batches. Before real use, validate document shapes and field types, test authorization in the Firebase Emulator Suite, and review the public projection before enabling parent access.
 
 ## Local development
 
