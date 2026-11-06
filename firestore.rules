@@ -1,34 +1,73 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isAdmin() {
-      return request.auth != null
-        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
-        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.active == true;
+    function signedIn() {
+      return request.auth != null;
+    }
+    function adminDoc() {
+      return /databases/$(database)/documents/admins/$(request.auth.uid);
+    }
+    function isActiveAdmin() {
+      return signedIn()
+        && exists(adminDoc())
+        && get(adminDoc()).data.active == true;
+    }
+    function isSuperAdmin() {
+      return isActiveAdmin()
+        && get(adminDoc()).data.role == 'super_admin';
+    }
+    function isScoreAdmin() {
+      return isActiveAdmin()
+        && get(adminDoc()).data.role in ['super_admin', 'score_admin'];
     }
 
-    // Admin records must be provisioned by a trusted project owner.
-    // Clients cannot grant themselves admin access.
+    // Admin identities are provisioned only from a trusted Firebase console
+    // or server environment. A client can never grant itself a role.
     match /admins/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
-      allow write: if false;
+      allow read: if signedIn() && (request.auth.uid == uid || isSuperAdmin());
+      allow create, update, delete: if false;
     }
 
-    // Public tournament pages may read tournament display data.
-    // Only active admins may create or modify tournaments.
+    // Private operational records: only active admins can read or write.
     match /tournaments/{tournamentId} {
-      allow read: if resource.data.visibility == 'public' || isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow read: if isActiveAdmin();
+      allow create, update, delete: if isSuperAdmin();
 
-      match /{document=**} {
-        allow read: if get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.visibility == 'public' || isAdmin();
-        allow write: if isAdmin();
+      match /matches/{matchId} {
+        allow read: if isActiveAdmin();
+        allow create, delete: if isScoreAdmin();
+        allow update: if isScoreAdmin()
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['scoreA', 'scoreB', 'status', 'updatedAt', 'updatedBy']);
       }
     }
 
-    // Shared player directory is private by default.
+    // Player records may contain personal information. Never expose these
+    // documents to public scoreboard visitors.
     match /players/{playerId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isActiveAdmin();
+    }
+
+    // Explicitly sanitized public projection. Only tournament display fields
+    // belong here; do not copy player phone numbers, email addresses or admin data.
+    match /publicTournaments/{tournamentId} {
+      allow read: if resource.data.published == true;
+      allow create, update, delete: if isSuperAdmin();
+
+      match /matches/{matchId} {
+        allow read: if get(/databases/$(database)/documents/publicTournaments/$(tournamentId)).data.published == true;
+        allow write: if isScoreAdmin();
+      }
+
+      match /standings/{standingId} {
+        allow read: if get(/databases/$(database)/documents/publicTournaments/$(tournamentId)).data.published == true;
+        allow write: if isScoreAdmin();
+      }
+    }
+
+    // Deny everything not explicitly allowed above.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
