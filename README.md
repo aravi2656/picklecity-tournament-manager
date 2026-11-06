@@ -4,7 +4,7 @@ A tournament operations app for PickleCity: tournament setup, player/team regist
 
 ## Current repository status
 
-The current React app is still a **browser-local demo**. Demo records are stored in localStorage and are not shared across devices. The UI is not yet connected to Firebase Authentication or Firestore, and no public scoreboard URL has been deployed.
+The React app supports a browser-local demo workspace and an authenticated, read/write Firestore workspace preview. Demo data is kept in browser localStorage; live records load from the existing Firebase project after an active admin signs in. No public scoreboard URL has been deployed.
 
 Implemented in the demo:
 - Tournament, player and team CRUD
@@ -15,7 +15,7 @@ Implemented in the demo:
 - Match CSV export
 
 Not implemented yet:
-- Firebase sign-in and Firestore synchronization
+- Firebase email/password sign-in and Firestore read/write operations for tournaments, players, teams and matches (admin role restrictions apply)
 - Public parent scoreboard and publication workflow
 - Knockout bracket progression and league-to-semifinal/final automation
 - Random mixed-doubles partner generation
@@ -38,7 +38,7 @@ The rules file establishes two data zones:
 - `publicTournaments/{tournamentId}/matches/{matchId}` and `standings/{standingId}`: public display data, readable only when the parent tournament has `published: true`.
 - `admins/{uid}`: roles provisioned by a trusted project owner; clients cannot grant roles.
 
-Suggested admin roles are `super_admin` and `score_admin`. The rules allow super admins to manage tournament setup and score admins to update match scores. This is a starting ruleset, not production-verified security. The rules now include private root-level `teams/{teamId}` documents. The current React screens still use browser-local demo storage; no Firestore CRUD/sync has been wired into them. The rules file is committed to GitHub but has NOT been deployed to the Firebase console. Before real use, validate document shapes and field types, test authorization in the Firebase Emulator Suite, and review the public projection before enabling parent access.
+Suggested admin roles are `super_admin` and `score_admin`. The rules allow super admins to manage tournament setup and score admins to update match scores. This is a starting ruleset, not production-verified security. The rules now include private root-level `teams/{teamId}` documents. The React screens now load and save live Firestore records when an active admin opens Live mode. Demo and live data are kept separate. The rules file is committed to GitHub but has NOT been deployed to the Firebase console. Player/team writes are restricted to super admins; match writes are restricted to score admins and super admins. Tournament deletion removes its match subcollection in batches. Before real use, validate document shapes and field types, test authorization in the Firebase Emulator Suite, and review the public projection before enabling parent access.
 
 ## Local development
 
