@@ -112,9 +112,8 @@ export async function publishPublicSnapshot(
   standings: PublicStanding[],
   published: boolean
 ): Promise<void> {
-  const batch = writeBatch(db)
   const publicTournamentRef = doc(db, 'publicTournaments', tournament.id)
-  batch.set(publicTournamentRef, {
+  await setDoc(publicTournamentRef, {
     name: tournament.name,
     format: tournament.format,
     status: tournament.status,
@@ -122,7 +121,9 @@ export async function publishPublicSnapshot(
     venue: tournament.venue,
     published,
     updatedAt: serverTimestamp()
-  })
+  }, { merge: true })
+  if (!published) return
+  const batch = writeBatch(db)
   for (const match of matches) {
     const { id, ...safeMatch } = match
     batch.set(doc(db, 'publicTournaments', tournament.id, 'matches', id), safeMatch)
