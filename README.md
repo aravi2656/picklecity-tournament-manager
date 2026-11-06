@@ -38,7 +38,7 @@ The rules file establishes two data zones:
 - `publicTournaments/{tournamentId}/matches/{matchId}` and `standings/{standingId}`: public display data, readable only when the parent tournament has `published: true`.
 - `admins/{uid}`: roles provisioned by a trusted project owner; clients cannot grant roles.
 
-Suggested admin roles are `super_admin` and `score_admin`. The rules allow super admins to manage tournament setup and score admins to update match scores. This is a starting ruleset, not a claim of completed production security: validate every document shape and field, test rules in the Firebase Emulator Suite, and review the public projection before enabling real parent access.
+Suggested admin roles are `super_admin` and `score_admin`. The rules allow super admins to manage tournament setup and score admins to update match scores. This is a starting ruleset, not production-verified security. The rules now include private root-level `teams/{teamId}` documents. The current React screens still use browser-local demo storage; no Firestore CRUD/sync has been wired into them. The rules file is committed to GitHub but has NOT been deployed to the Firebase console. Before real use, validate document shapes and field types, test authorization in the Firebase Emulator Suite, and review the public projection before enabling parent access.
 
 ## Local development
 
