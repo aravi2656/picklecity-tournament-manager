@@ -3,6 +3,7 @@ import {
   doc,
   getDocs,
   deleteDoc,
+  writeBatch,
   serverTimestamp,
   setDoc,
   writeBatch,
@@ -137,7 +138,13 @@ export async function publishPublicSnapshot(
 }
 
 export async function deleteCloudTournament(id: string): Promise<void> {
-  await deleteDoc(doc(db, 'tournaments', id))
+  const matches = await getDocs(collection(db, 'tournaments', id, 'matches'))
+  const refs = [doc(db, 'tournaments', id), ...matches.docs.map(item => item.ref)]
+  for (let offset = 0; offset < refs.length; offset += 450) {
+    const batch = writeBatch(db)
+    refs.slice(offset, offset + 450).forEach(ref => batch.delete(ref))
+    await batch.commit()
+  }
 }
 export async function deleteCloudPlayer(id: string): Promise<void> {
   await deleteDoc(doc(db, 'players', id))
