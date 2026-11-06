@@ -115,13 +115,15 @@ export async function publishPublicSnapshot(
   published: boolean
 ): Promise<void> {
   const publicTournamentRef = doc(db, 'publicTournaments', tournament.id)
+  // Hide the public route while replacing its snapshot. This prevents readers from
+  // seeing a partially updated set of matches/standings if a later batch fails.
   await setDoc(publicTournamentRef, {
     name: tournament.name,
     format: tournament.format,
     status: tournament.status,
     startDate: tournament.startDate,
     venue: tournament.venue,
-    published,
+    published: false,
     updatedAt: serverTimestamp()
   }, { merge: true })
 
@@ -153,6 +155,13 @@ export async function publishPublicSnapshot(
     const batch = writeBatch(db)
     operations.slice(offset, offset + 450).forEach(operation => operation(batch))
     await batch.commit()
+  }
+  // Make the new snapshot visible only after every child write succeeds.
+  if (published) {
+    await setDoc(publicTournamentRef, {
+      published: true,
+      updatedAt: serverTimestamp()
+    }, { merge: true })
   }
 }
 
