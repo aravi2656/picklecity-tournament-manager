@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db, firebaseConfigured } from './firebase'
-import { loadCloudMatches, loadPlayers, loadTeams, loadTournaments } from './firestoreData'
+import { deleteCloudMatch, deleteCloudPlayer, deleteCloudTeam, deleteCloudTournament, loadCloudMatches, loadPlayers, loadTeams, loadTournaments, saveCloudMatch, saveCloudPlayer, saveCloudTeam, saveCloudTournament } from './firestoreData'
 import { Activity, CalendarDays, ClipboardList, Users, Trophy, Radio, Settings, Menu, Plus, ArrowUpRight, Sparkles, Pencil, Copy, Trash2, X } from 'lucide-react'
 type Section = 'Overview' | 'Tournaments' | 'Players' | 'Teams' | 'Matches' | 'Live scoreboard' | 'Settings'
 type Player = { id:string; name:string; phone:string; category:string; tournamentId:string }
@@ -11,7 +11,7 @@ const PLAYER_KEY='picklecity-demo-players-v1', TEAM_KEY='picklecity-demo-teams-v
 function readList<T,>(key:string):T[]{try{return JSON.parse(localStorage.getItem(key)||'[]') as T[]}catch{return []}}
 type Match = { id:string; tournamentId:string; teamA:string; teamB:string; date:string; court:string; round:string; scoreA:number|null; scoreB:number|null; status:'Scheduled'|'Live'|'Completed' }
 const MATCH_KEY='picklecity-demo-matches-v1'
-type Tournament = { id: string; name: string; format: string; status: 'Draft' | 'Upcoming' | 'Live' | 'Completed'; startDate: string; venue: string; isDemo: true }
+type Tournament = { id: string; name: string; format: string; status: 'Draft' | 'Upcoming' | 'Live' | 'Completed'; startDate: string; venue: string; isDemo: boolean }
 const STORAGE_KEY = 'picklecity-demo-tournaments-v1'
 const seed: Tournament[] = [{ id: 'demo-kpl-s2', name: 'KPL Season 2', format: 'League + Semifinal + Final', status: 'Draft', startDate: '', venue: 'Pickle City', isDemo: true }]
 const nav: { label: Section; icon: typeof Activity }[] = [{label:'Overview',icon:Activity},{label:'Tournaments',icon:CalendarDays},{label:'Players',icon:Users},{label:'Teams',icon:Trophy},{label:'Matches',icon:ClipboardList},{label:'Live scoreboard',icon:Radio},{label:'Settings',icon:Settings}]
@@ -22,6 +22,7 @@ export default function App() {
  const [dataMode,setDataMode]=useState<'demo'|'live'>('demo')
  const [liveLoading,setLiveLoading]=useState(false)
  const [liveError,setLiveError]=useState('')
+ const [demoBackup,setDemoBackup]=useState<{tournaments:Tournament[];players:Player[];teams:Team[];matches:Match[]}|null>(null)
  const [authUser,setAuthUser]=useState<User|null>(null)
  const [adminRole,setAdminRole]=useState('')
  const [authEmail,setAuthEmail]=useState('')
@@ -69,15 +70,16 @@ export default function App() {
   if(!authUser||!['super_admin','score_admin'].includes(adminRole)){setLiveError('Sign in with an active tournament admin account before opening Live mode.');return}
   setLiveLoading(true);setLiveError('')
   try{
+   setDemoBackup({tournaments:readDemo(),players:readList<Player>(PLAYER_KEY),teams:readList<Team>(TEAM_KEY),matches:readList<Match>(MATCH_KEY)})
    const [cloudTournaments,cloudPlayers,cloudTeams]=await Promise.all([loadTournaments(),loadPlayers(),loadTeams()])
    const cloudMatches=(await Promise.all(cloudTournaments.map(t=>loadCloudMatches(t.id)))).flat()
-   setTournaments(cloudTournaments.map(t=>({...t,isDemo:true as const})))
+   setTournaments(cloudTournaments.map(t=>({...t,isDemo:false})))
    setPlayers(cloudPlayers);setTeams(cloudTeams);setMatches(cloudMatches)
    setDataMode('live')
   }catch(error){setLiveError(error instanceof Error?error.message:'Unable to load live tournament data.')}
   finally{setLiveLoading(false)}
  }
- function returnToDemo(){setDataMode('demo');setLiveError('')}
+ function returnToDemo(){if(demoBackup){setTournaments(demoBackup.tournaments);setPlayers(demoBackup.players);setTeams(demoBackup.teams);setMatches(demoBackup.matches)}setDataMode('demo');setLiveError('')}
 
  const stats = useMemo(() => ({ tournaments: tournaments.length, upcoming: tournaments.filter(t => t.status === 'Upcoming' || t.status === 'Live').length }), [tournaments])
  function openRecord(kind:'player'|'team',item?:Player|Team){setRecordModal(kind);setPlayerEdit(kind==='player'?(item as Player||null):null);setTeamEdit(kind==='team'?(item as Team||null):null);setRecordName(item?.name||'');setRecordPhone(kind==='player'?(item as Player)?.phone||'':'');setRecordCategory(kind==='player'?(item as Player)?.category||'Open':'Open');setRecordCaptain(kind==='team'?(item as Team)?.captain||'':'');setRecordMembers(kind==='team'?(item as Team)?.members||[]:[]);setRecordTournament(item?.tournamentId||tournaments[0]?.id||'');}
