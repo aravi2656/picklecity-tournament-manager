@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db, firebaseConfigured } from './firebase'
+import { loadCloudMatches, loadPlayers, loadTeams, loadTournaments } from './firestoreData'
 import { Activity, CalendarDays, ClipboardList, Users, Trophy, Radio, Settings, Menu, Plus, ArrowUpRight, Sparkles, Pencil, Copy, Trash2, X } from 'lucide-react'
 type Section = 'Overview' | 'Tournaments' | 'Players' | 'Teams' | 'Matches' | 'Live scoreboard' | 'Settings'
 type Player = { id:string; name:string; phone:string; category:string; tournamentId:string }
@@ -18,6 +19,9 @@ function readDemo(): Tournament[] { try { const raw = localStorage.getItem(STORA
 function PickleCityLogo() { return <div className="logo-mark">PC</div> }
 export default function App() {
  const [section,setSection] = useState<Section>('Overview')
+ const [dataMode,setDataMode]=useState<'demo'|'live'>('demo')
+ const [liveLoading,setLiveLoading]=useState(false)
+ const [liveError,setLiveError]=useState('')
  const [authUser,setAuthUser]=useState<User|null>(null)
  const [adminRole,setAdminRole]=useState('')
  const [authEmail,setAuthEmail]=useState('')
@@ -57,10 +61,24 @@ export default function App() {
  const [status,setStatus] = useState<Tournament['status']>('Draft')
  const [startDate,setStartDate] = useState('')
  const [venue,setVenue] = useState('')
- useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(tournaments)) }, [tournaments])
- useEffect(()=>{localStorage.setItem(MATCH_KEY,JSON.stringify(matches))},[matches])
- useEffect(()=>{localStorage.setItem(PLAYER_KEY,JSON.stringify(players))},[players])
- useEffect(()=>{localStorage.setItem(TEAM_KEY,JSON.stringify(teams))},[teams])
+ useEffect(() => { if(dataMode==='demo') localStorage.setItem(STORAGE_KEY, JSON.stringify(tournaments)) }, [tournaments,dataMode])
+ useEffect(()=>{if(dataMode==='demo')localStorage.setItem(MATCH_KEY,JSON.stringify(matches))},[matches,dataMode])
+ useEffect(()=>{if(dataMode==='demo')localStorage.setItem(PLAYER_KEY,JSON.stringify(players))},[players,dataMode])
+ useEffect(()=>{if(dataMode==='demo')localStorage.setItem(TEAM_KEY,JSON.stringify(teams))},[teams,dataMode])
+ async function enterLiveMode(){
+  if(!authUser||!['super_admin','score_admin'].includes(adminRole)){setLiveError('Sign in with an active tournament admin account before opening Live mode.');return}
+  setLiveLoading(true);setLiveError('')
+  try{
+   const [cloudTournaments,cloudPlayers,cloudTeams]=await Promise.all([loadTournaments(),loadPlayers(),loadTeams()])
+   const cloudMatches=(await Promise.all(cloudTournaments.map(t=>loadCloudMatches(t.id)))).flat()
+   setTournaments(cloudTournaments.map(t=>({...t,isDemo:true as const})))
+   setPlayers(cloudPlayers);setTeams(cloudTeams);setMatches(cloudMatches)
+   setDataMode('live')
+  }catch(error){setLiveError(error instanceof Error?error.message:'Unable to load live tournament data.')}
+  finally{setLiveLoading(false)}
+ }
+ function returnToDemo(){setDataMode('demo');setLiveError('')}
+
  const stats = useMemo(() => ({ tournaments: tournaments.length, upcoming: tournaments.filter(t => t.status === 'Upcoming' || t.status === 'Live').length }), [tournaments])
  function openRecord(kind:'player'|'team',item?:Player|Team){setRecordModal(kind);setPlayerEdit(kind==='player'?(item as Player||null):null);setTeamEdit(kind==='team'?(item as Team||null):null);setRecordName(item?.name||'');setRecordPhone(kind==='player'?(item as Player)?.phone||'':'');setRecordCategory(kind==='player'?(item as Player)?.category||'Open':'Open');setRecordCaptain(kind==='team'?(item as Team)?.captain||'':'');setRecordMembers(kind==='team'?(item as Team)?.members||[]:[]);setRecordTournament(item?.tournamentId||tournaments[0]?.id||'');}
  function saveRecord(e:React.FormEvent){e.preventDefault();if(!recordName.trim()||!recordTournament)return;if(recordModal==='player'){const item:Player={id:playerEdit?.id||crypto.randomUUID(),name:recordName.trim(),phone:recordPhone.trim(),category:recordCategory,tournamentId:recordTournament};setPlayers(old=>playerEdit?old.map(x=>x.id===item.id?item:x):[...old,item]);}else if(recordModal==='team'){const item:Team={id:teamEdit?.id||crypto.randomUUID(),name:recordName.trim(),captain:recordCaptain.trim(),members:recordMembers,tournamentId:recordTournament};setTeams(old=>teamEdit?old.map(x=>x.id===item.id?item:x):[...old,item]);}setRecordModal(null)}
@@ -74,9 +92,9 @@ export default function App() {
  function saveTournament(e: React.FormEvent) { e.preventDefault(); const clean = name.trim(); if (!clean) return; if (editing) setTournaments(old => old.map(t => t.id === editing.id ? {...t,name:clean,format,status,startDate,venue} : t)); else setTournaments(old => [...old,{id:crypto.randomUUID(),name:clean,format,status,startDate,venue,isDemo:true}]); setFormOpen(false) }
  function duplicate(t: Tournament) { setTournaments(old => [...old,{...t,id:crypto.randomUUID(),name:t.name + ' (Copy)',status:'Draft'}]) }
  function remove(t: Tournament) { if (window.confirm(`Delete demo tournament “${t.name}”?`)) setTournaments(old => old.filter(x => x.id !== t.id)) }
- return <div className="app-shell"><aside className={menuOpen?'sidebar open':'sidebar'}><div className="brand"><PickleCityLogo/><div><strong>PICKLECITY</strong><span>TOURNAMENT MANAGER</span></div></div><div className="workspace-label">WORKSPACE</div><nav>{nav.map(({label,icon:Icon})=><button key={label} className={section===label?'nav-item active':'nav-item'} onClick={()=>{setSection(label);setMenuOpen(false)}}><Icon size={18}/><span>{label}</span></button>)}</nav><div className="sidebar-bottom"><span className="status-dot connected"/>Demo mode active<small>Stored in this browser only</small></div></aside>
- <main className="main"><header className="topbar"><button className="menu-button" onClick={()=>setMenuOpen(!menuOpen)} aria-label="Toggle menu"><Menu size={20}/></button><div className="crumb">PickleCity <span>/</span> {section}</div><div className="top-right"><span className="demo-pill">DEMO WORKSPACE</span><div className="avatar">AK</div></div></header>
- <div className="page"><div className="demo-notice"><span className="demo-dot"/><div><strong>DEMO DATA — NOT LIVE</strong><p>Changes are saved only in this browser. Nothing is written to Firebase or visible to parents.</p></div></div>
+ return <div className="app-shell"><aside className={menuOpen?'sidebar open':'sidebar'}><div className="brand"><PickleCityLogo/><div><strong>PICKLECITY</strong><span>TOURNAMENT MANAGER</span></div></div><div className="workspace-label">WORKSPACE</div><nav>{nav.map(({label,icon:Icon})=><button key={label} className={section===label?'nav-item active':'nav-item'} onClick={()=>{setSection(label);setMenuOpen(false)}}><Icon size={18}/><span>{label}</span></button>)}</nav><div className="sidebar-bottom"><span className="status-dot connected"/>{dataMode==='demo'?'Demo mode active':'Live data loaded'}<small>{dataMode==='demo'?'Stored in this browser only':'Firebase · read-only preview'}</small></div></aside>
+ <main className="main"><header className="topbar"><button className="menu-button" onClick={()=>setMenuOpen(!menuOpen)} aria-label="Toggle menu"><Menu size={20}/></button><div className="crumb">PickleCity <span>/</span> {section}</div><div className="top-right"><span className="demo-pill">{dataMode==='demo'?'DEMO WORKSPACE':'LIVE WORKSPACE · READ ONLY'}</span><button className="secondary-button" onClick={dataMode==='demo'?enterLiveMode:returnToDemo} disabled={liveLoading}>{liveLoading?'Loading…':dataMode==='demo'?'Open Live':'Back to Demo'}</button><div className="avatar">AK</div></div></header>
+ <div className="page">{dataMode==='demo'?<div className="demo-notice"><span className="demo-dot"/><div><strong>DEMO DATA — NOT LIVE</strong><p>Changes are saved only in this browser. Nothing is written to Firebase or visible to parents.</p></div></div>:<div className="demo-notice"><span className="demo-dot"/><div><strong>LIVE FIRESTORE DATA — READ ONLY</strong><p>Loaded from your Firebase project. Editing is disabled in this preview stage; demo records remain separate.</p></div></div>}{liveError&&<div className="demo-notice"><div><strong>LIVE MODE MESSAGE</strong><p>{liveError}</p></div></div>}
  {section==='Overview' ? <><section className="hero-welcome"><div className="hero-copy"><div className="welcome-kicker"><Sparkles size={14}/> WELCOME TO PICKLECITY</div><h1>Play with passion.<br/><em>Grow with every game.</em></h1><p>Big dreams start on the court. Give every young player the chance to learn, compete and take their game to the next level.</p><div className="hero-actions"><button className="hero-cta" onClick={()=>setSection('Tournaments')}>Explore tournaments <ArrowUpRight size={16}/></button><span>ONE CLUB. MANY CHAMPIONS.</span></div></div><div className="hero-art"><div className="court-ring ring-one"/><div className="court-ring ring-two"/><div className="hero-ball">PC</div><div className="hero-caption">PLAY · LEARN · LEVEL UP</div></div></section>
  <div className="page-heading"><div><p className="eyebrow">YOUR CLUB AT A GLANCE</p><h2>Dashboard</h2><p className="subheading">Your tournament operations, all in one place.</p></div><button className="primary-button" onClick={openCreate}><Plus size={17}/> New tournament</button></div>
  <div className="stats-grid"><button className="stat-card" onClick={()=>setSection('Tournaments')}><span>Demo tournaments</span><strong>{stats.tournaments}</strong><small>Manage tournaments <ArrowUpRight size={13}/></small></button><button className="stat-card" onClick={()=>setSection('Tournaments')}><span>Upcoming / live</span><strong>{stats.upcoming}</strong><small>View schedule <ArrowUpRight size={13}/></small></button><div className="stat-card static"><span>Registered players</span><strong>{players.length}</strong><small>Demo player records</small></div><div className="stat-card static"><span>Teams created</span><strong>{teams.length}</strong><small>Next development stage</small></div></div>
