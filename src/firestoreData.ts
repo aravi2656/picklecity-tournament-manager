@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDocs,
+  deleteDoc,
   serverTimestamp,
   setDoc,
   writeBatch,
@@ -133,4 +134,17 @@ export async function publishPublicSnapshot(
     batch.set(doc(db, 'publicTournaments', tournament.id, 'standings', id), safeStanding)
   }
   await batch.commit()
+}
+
+export async function deleteCloudTournament(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'tournaments', id))
+}
+export async function deleteCloudPlayer(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'players', id))
+}
+export async function deleteCloudTeam(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'teams', id))
+}
+export async function deleteCloudMatch(tournamentId: string, id: string): Promise<void> {
+  await deleteDoc(doc(db, 'tournaments', tournamentId, 'matches', id))
 }
