@@ -1,77 +1,97 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() {
-      return request.auth != null;
+    function signedIn() { return request.auth != null; }
+    function adminPath(uid) {
+      return /databases/$(database)/documents/admins/$(uid);
     }
-    function adminDoc() {
-      return /databases/$(database)/documents/admins/$(request.auth.uid);
-    }
-    function isActiveAdmin() {
+    function activeAdmin() {
       return signedIn()
-        && exists(adminDoc())
-        && get(adminDoc()).data.active == true;
+        && exists(adminPath(request.auth.uid))
+        && get(adminPath(request.auth.uid)).data.active == true;
     }
-    function isSuperAdmin() {
-      return isActiveAdmin()
-        && get(adminDoc()).data.role == 'super_admin';
+    function superAdmin() {
+      return activeAdmin() && get(adminPath(request.auth.uid)).data.role == 'super_admin';
     }
-    function isScoreAdmin() {
-      return isActiveAdmin()
-        && get(adminDoc()).data.role in ['super_admin', 'score_admin'];
+    function scoreAdmin() {
+      return activeAdmin()
+        && get(adminPath(request.auth.uid)).data.role in ['super_admin', 'score_admin'];
+    }
+    function onlyKeys(data, keys) {
+      return data.keys().hasOnly(keys);
+    }
+    function validPublicTournament(data) {
+      return onlyKeys(data, ['name', 'format', 'status', 'startDate', 'venue', 'published', 'updatedAt'])
+        && data.name is string && data.name.size() <= 120
+        && data.format is string && data.format.size() <= 80
+        && data.status in ['Draft', 'Upcoming', 'Live', 'Completed']
+        && data.startDate is string && data.startDate.size() <= 40
+        && data.venue is string && data.venue.size() <= 160
+        && data.published is bool;
+    }
+    function validPublicMatch(data) {
+      return onlyKeys(data, ['teamAName', 'teamBName', 'date', 'court', 'round', 'scoreA', 'scoreB', 'status'])
+        && data.teamAName is string && data.teamAName.size() <= 100
+        && data.teamBName is string && data.teamBName.size() <= 100
+        && data.date is string && data.date.size() <= 40
+        && data.court is string && data.court.size() <= 60
+        && data.round is string && data.round.size() <= 80
+        && (data.scoreA == null || (data.scoreA is int && data.scoreA >= 0 && data.scoreA <= 99))
+        && (data.scoreB == null || (data.scoreB is int && data.scoreB >= 0 && data.scoreB <= 99))
+        && data.status in ['Scheduled', 'Live', 'Completed'];
+    }
+    function validPublicStanding(data) {
+      return onlyKeys(data, ['teamName', 'played', 'wins', 'losses', 'points', 'scoreDifference', 'rank'])
+        && data.teamName is string && data.teamName.size() <= 100
+        && data.played is int && data.played >= 0
+        && data.wins is int && data.wins >= 0
+        && data.losses is int && data.losses >= 0
+        && data.points is int && data.points >= 0
+        && data.scoreDifference is int
+        && data.rank is int && data.rank >= 1;
     }
 
-    // Admin identities are provisioned only from a trusted Firebase console
-    // or server environment. A client can never grant itself a role.
     match /admins/{uid} {
-      allow read: if signedIn() && (request.auth.uid == uid || isSuperAdmin());
+      allow read: if signedIn() && (request.auth.uid == uid || superAdmin());
       allow create, update, delete: if false;
     }
 
-    // Private operational records: only active admins can read or write.
     match /tournaments/{tournamentId} {
-      allow read: if isActiveAdmin();
-      allow create, update, delete: if isSuperAdmin();
-
+      allow read: if activeAdmin();
+      allow create, update, delete: if superAdmin();
       match /matches/{matchId} {
-        allow read: if isActiveAdmin();
-        allow create, delete: if isScoreAdmin();
-        allow update: if isScoreAdmin()
+        allow read: if activeAdmin();
+        allow create, delete: if scoreAdmin();
+        allow update: if scoreAdmin()
           && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['teamA', 'teamB', 'date', 'court', 'round', 'scoreA', 'scoreB', 'status', 'updatedAt', 'updatedBy']);
       }
     }
 
-    // Team records are private operational data, separate from the public projection.
     match /teams/{teamId} {
-      allow read: if isActiveAdmin();
-      allow create, update, delete: if isSuperAdmin();
+      allow read: if activeAdmin();
+      allow create, update, delete: if superAdmin();
     }
-
-    // Player records may contain personal information. Never expose these
-    // documents to public scoreboard visitors.
     match /players/{playerId} {
-      allow read, write: if isActiveAdmin();
+      allow read, write: if superAdmin();
     }
 
-    // Explicitly sanitized public projection. Only tournament display fields
-    // belong here; do not copy player phone numbers, email addresses or admin data.
     match /publicTournaments/{tournamentId} {
       allow read: if resource.data.published == true;
-      allow create, update, delete: if isSuperAdmin();
-
+      allow create, update: if superAdmin() && validPublicTournament(request.resource.data);
+      allow delete: if superAdmin();
       match /matches/{matchId} {
         allow read: if get(/databases/$(database)/documents/publicTournaments/$(tournamentId)).data.published == true;
-        allow write: if isScoreAdmin();
+        allow create, update: if superAdmin() && validPublicMatch(request.resource.data);
+        allow delete: if superAdmin();
       }
-
       match /standings/{standingId} {
         allow read: if get(/databases/$(database)/documents/publicTournaments/$(tournamentId)).data.published == true;
-        allow write: if isScoreAdmin();
+        allow create, update: if superAdmin() && validPublicStanding(request.resource.data);
+        allow delete: if superAdmin();
       }
     }
 
-    // Deny everything not explicitly allowed above.
     match /{document=**} {
       allow read, write: if false;
     }
