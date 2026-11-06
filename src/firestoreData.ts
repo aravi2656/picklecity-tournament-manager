@@ -166,8 +166,20 @@ export async function publishPublicSnapshot(
 }
 
 export async function deleteCloudTournament(id: string): Promise<void> {
-  const matches = await getDocs(collection(db, 'tournaments', id, 'matches'))
-  const refs = [doc(db, 'tournaments', id), ...matches.docs.map(item => item.ref)]
+  const [matches, publicMatches, publicStandings] = await Promise.all([
+    getDocs(collection(db, 'tournaments', id, 'matches')),
+    getDocs(collection(db, 'publicTournaments', id, 'matches')),
+    getDocs(collection(db, 'publicTournaments', id, 'standings'))
+  ])
+  // Remove the public projection as well as private records. Otherwise a deleted
+  // tournament could remain visible at its old public scoreboard URL.
+  const refs = [
+    ...matches.docs.map(item => item.ref),
+    ...publicMatches.docs.map(item => item.ref),
+    ...publicStandings.docs.map(item => item.ref),
+    doc(db, 'publicTournaments', id),
+    doc(db, 'tournaments', id)
+  ]
   for (let offset = 0; offset < refs.length; offset += 450) {
     const batch = writeBatch(db)
     refs.slice(offset, offset + 450).forEach(ref => batch.delete(ref))
