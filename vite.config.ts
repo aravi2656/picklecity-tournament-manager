@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: [],
+      includeAssets: ['pwa-icon.svg'],
       manifest: {
         name: 'PickleCity Tournament Manager',
         short_name: 'PickleCity',
@@ -16,7 +16,7 @@ export default defineConfig({
         background_color: '#f4f6f8',
         display: 'standalone',
         start_url: '/',
-        icons: []
+        icons: [{ src: '/pwa-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }]
       }
     })
   ]
