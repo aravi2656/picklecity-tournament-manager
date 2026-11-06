@@ -8,7 +8,7 @@ const firebaseConfig = {
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'kpl-tournament-manager',
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'kpl-tournament-manager.firebasestorage.app',
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '101022353099',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:101022353099:web:9ed738d39853af8f1cbd4e'
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:022353099:web:9ed738d39853af8f1cbd4e'
 }
 
 export const firebaseConfigured = Boolean(
